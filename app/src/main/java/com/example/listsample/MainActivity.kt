@@ -57,7 +57,6 @@ fun InfiniteList() {
     }
 
     listState.OnBottomReached {
-        Log.d("bottom","scroll")
         val endCount = listItems.value.count()
         isLoading.value = true
         // 今回は通信処理を行わないが、実際には通信を行う想定として遅延処理を実行
