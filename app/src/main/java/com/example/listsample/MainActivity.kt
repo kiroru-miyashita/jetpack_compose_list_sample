@@ -1,6 +1,7 @@
 package com.example.listsample
 
 import android.os.Bundle
+import android.os.Handler
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,18 +13,14 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.listsample.ui.theme.ListSampleTheme
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.filter
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,35 +33,38 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class Post(val nickname: String, val caption: String)
+const val ReloadLimit = 20
+const val InitialLoadCount = 50
 
-const val ReloadLimit = 25
-const val MaxCount = 200
+data class Post(val nickname: String, val caption: String)
 
 @Composable
 fun InfiniteList() {
-    var listItem = remember { mutableStateOf(createListItem(end = 0, count = ReloadLimit)) }
-    Surface(color = MaterialTheme.colors.background) {
-        LazyColumn(modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            listItem.value.forEach {
-                item {
-                    ItemCard(post = it, modifier = Modifier.padding(bottom = 8.dp, start = 32.dp, end = 32.dp))
-                }
-            }
+    val listItems = remember { mutableStateOf(createPostData(0, InitialLoadCount)) }
+    val isLoading = remember { mutableStateOf(false) }
 
-            // アイテムの上限数も設定可能
-//            val isLast= listItem.value.count() >= MaxCount
-//            if (isLast.not()) {
-                item {
-                    Loading(
-                        modifier = Modifier.padding(top = 16.dp, bottom = 32.dp)) {
-                        val endCount = listItem.value.count()
-                        listItem.value = listItem.value + createListItem(endCount, ReloadLimit)
-                    }
-                }
-//            }
+    val listState = rememberLazyListState()
+    LazyColumn(state = listState) {
+        listItems.value.forEach {
+            item {
+                ItemCard(post = it, modifier = Modifier.padding(bottom = 8.dp, start = 32.dp, end = 32.dp))
+            }
         }
+    }
+
+    if (isLoading.value) {
+        CircularProgressIndicator()
+    }
+
+    listState.OnBottomReached {
+        Log.d("bottom","scroll")
+        val endCount = listItems.value.count()
+        isLoading.value = true
+        // 今回は通信処理を行わないが、実際には通信を行う想定として遅延処理を実行
+        Handler().postDelayed({
+            isLoading.value = false
+            listItems.value += createPostData(endCount, ReloadLimit)
+        },2000)
     }
 }
 
@@ -103,20 +103,33 @@ fun ItemCard(modifier: Modifier = Modifier, post: Post) {
     }
 }
 
-fun createListItem(end: Int, count: Int): List<Post> {
-    val names = listOf("Alice", "Jhon", "Smith", "Taro", "Jun", "Debit", "Mike", "Kebin", "Dain", "Kein")
-    return (end + 1..end + count).toList().map {
-        val random = (0..9).random()
-        Post(nickname = names[random], caption = "これは${it}番目のキャプションです。") // フェッチしたpostDataを直接返してもよい。
+@Composable
+fun LazyListState.OnBottomReached(
+    loadMore: () -> Unit
+) {
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                ?:
+                return@derivedStateOf true
+
+            lastVisibleItem.index == layoutInfo.totalItemsCount - 1
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        snapshotFlow { shouldLoadMore.value }
+            .collect {
+                if (it) loadMore()
+            }
     }
 }
 
-@Composable
-fun Loading(modifier: Modifier = Modifier, onLaunch: () -> Unit) {
-    CircularProgressIndicator(modifier = modifier)
-
-    LaunchedEffect(key1 = true) {
-        onLaunch()
+private fun createPostData(offset: Int, limit: Int): List<Post> {
+    val names = listOf("Alice", "Jhon", "Smith", "Taro", "Jun", "Debit", "Mike", "Kebin", "Dain", "Kein")
+    return (offset + 1..offset + limit).toList().map {
+        val random = (0..9).random()
+        Post(nickname = names[random], caption = "これは${it}番目のキャプションです。") // フェッチしたpostDataを直接返してもよい。
     }
 }
 
