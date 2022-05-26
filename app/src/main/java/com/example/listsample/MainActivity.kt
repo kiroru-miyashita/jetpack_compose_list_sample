@@ -111,7 +111,6 @@ fun LazyListState.OnBottomReached(
             val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
                 ?:
                 return@derivedStateOf true
-
             lastVisibleItem.index == layoutInfo.totalItemsCount - 1
         }
     }
@@ -134,7 +133,21 @@ private fun createPostData(offset: Int, limit: Int): List<Post> {
 
 @Preview
 @Composable
-fun DefaultPreview() {
-    ListSampleTheme {
+fun TextFieldDefaultPreview() {
+    var name by remember { mutableStateOf("") }
+
+    Column {
+        Text("StateFullComposable")
+        TextField(
+            value = name,
+            onValueChange = { name = it }
+        )
+
+        Spacer(modifier = Modifier.height(50.dp))
+        Text("StateLessComposable")
+        TextField(
+            value = "Text",
+            onValueChange = { }
+        )
     }
 }
